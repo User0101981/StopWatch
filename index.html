@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aesthetic Online Stopwatch</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #000000;
+            color: #ffffff;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Soft typography overrides */
+        .font-soft-bold { font-weight: 800; }
+        .font-soft-semibold { font-weight: 700; }
+        .font-soft-medium { font-weight: 600; }
+
+        .btn-base {
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 14px;
+            padding: 12px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.125rem;
+            min-width: 100px;
+            user-select: none;
+        }
+
+        .btn-base:active {
+            transform: scale(0.92);
+        }
+
+        .btn-start { 
+            background-color: #ffffff; 
+            color: #000000; 
+        }
+        
+        .btn-pause { 
+            background-color: #7432FF; 
+            color: #ffffff; 
+        }
+        
+        .btn-lap { 
+            border: 2px solid rgba(255, 255, 255, 0.9); 
+            background: transparent; 
+            color: #ffffff; 
+            min-width: 80px;
+        }
+
+        .icon-btn {
+            transition: all 0.2s ease;
+            opacity: 0.6;
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        .icon-btn:hover { opacity: 1; }
+        .icon-btn:active { transform: scale(0.9); }
+        .reset-icon:active { transform: rotate(-45deg) scale(0.9); }
+
+        /* Modern Grid Dropdown for smooth Auto-Height transition */
+        #laps-wrapper {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+            opacity: 0;
+            width: 100%;
+        }
+
+        #laps-wrapper.open {
+            grid-template-rows: 1fr;
+            opacity: 1;
+        }
+
+        #laps-inner {
+            overflow: hidden;
+        }
+        
+        .lap-entry {
+            animation: slideDownFade 0.3s ease-out forwards;
+        }
+
+        @keyframes slideDownFade {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Custom Scrollbar for Modal */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.4);
+        }
+    </style>
+</head>
+<body class="bg-black text-white overflow-x-hidden select-none">
+
+    <!-- Top Navigation Icons -->
+    <div class="fixed top-6 left-6 right-6 flex justify-between z-40 pointer-events-none">
+        <!-- History Button -->
+        <button id="history-btn" class="icon-btn pointer-events-auto" aria-label="View History">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                <path d="M3 3v5h5"></path>
+                <path d="M12 7v5l4 2"></path>
+            </svg>
+        </button>
+
+        <!-- Sound Toggle -->
+        <button id="sound-btn" class="icon-btn pointer-events-auto" aria-label="Toggle Ambient Noise">
+            <!-- Sound Off Icon (Default) -->
+            <svg id="sound-icon-off" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <line x1="23" y1="9" x2="17" y2="15"></line>
+                <line x1="17" y1="9" x2="23" y2="15"></line>
+            </svg>
+            <!-- Sound On Icon -->
+            <svg id="sound-icon-on" class="hidden" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+            </svg>
+        </button>
+    </div>
+
+    <!-- History Modal -->
+    <div id="history-modal" class="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] hidden flex-col opacity-0 transition-opacity duration-300">
+        <div class="flex items-center justify-between p-6 border-b border-white/10 max-w-lg mx-auto w-full">
+            <h2 class="text-2xl font-soft-bold">Session History</h2>
+            <button id="close-history-btn" class="p-2 opacity-60 hover:opacity-100 transition-opacity rounded-full hover:bg-white/10" aria-label="Close History">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div id="history-content" class="flex-1 overflow-y-auto p-6 max-w-lg mx-auto w-full space-y-8 pb-20">
+            <!-- Dynamic history content injected here -->
+            <div class="flex justify-center items-center h-full text-white/50">
+                Loading history...
+            </div>
+        </div>
+    </div>
+
+    <!-- Page centered container that allows downward expansion -->
+    <div class="min-h-[100dvh] grid place-items-center py-16 px-6 w-full">
+        <main class="flex flex-col items-center w-full max-w-sm mt-8">
+            
+            <!-- Timers -->
+            <div class="flex flex-col items-center justify-center mb-10 w-full">
+                <h1 id="total-display" class="text-[6rem] leading-none font-soft-bold tracking-tight mb-2 tabular-nums">00:00</h1>
+                <h2 id="current-display" class="text-3xl font-soft-semibold opacity-90 tabular-nums">Current: 00:00</h2>
+            </div>
+
+            <!-- Controls -->
+            <div class="flex items-center justify-center gap-4 mb-6">
+                <button id="main-btn" class="btn-base btn-start font-soft-bold tracking-wide">Start</button>
+                <button id="lap-btn" class="btn-base btn-lap font-soft-bold tracking-wide">Lap</button>
+                <button id="reset-btn" class="icon-btn reset-icon" aria-label="Reset & Save">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                        <path d="M3 3v5h5"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Lap Dropdown Toggle (Hidden until laps exist) -->
+            <button id="laps-toggle-btn" class="flex items-center justify-center gap-2 text-white/50 hover:text-white/90 transition-colors py-2 px-6 rounded-full opacity-0 pointer-events-none transition-all duration-300 mx-auto">
+                <span id="laps-count-text" class="text-sm font-soft-medium tracking-wide">0 Laps</span>
+                <svg id="laps-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-transform duration-300">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+
+            <!-- Expansive Lap List for full screenshots -->
+            <div id="laps-wrapper" class="mt-2">
+                <div id="laps-inner">
+                    <div id="laps-container" class="w-full flex flex-col px-4 py-2 bg-white/5 rounded-2xl border border-white/10">
+                        <!-- Lap items injected here -->
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Application Script inside Module to support Firebase Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Database Setup ---
+        const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, auth, db, currentUser = null;
+        let useFirebase = false;
+        let sessionsList = [];
+
+        if (firebaseConfigStr) {
+            try {
+                app = initializeApp(JSON.parse(firebaseConfigStr));
+                auth = getAuth(app);
+                db = getFirestore(app);
+                useFirebase = true;
+            } catch (e) { console.warn("Firebase Init Error:", e); }
+        }
+
+        const initAuth = async () => {
+            if (!auth) return;
+            try {
+                if (initialToken) {
+                    await signInWithCustomToken(auth, initialToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth error", error);
+            }
+        };
+
+        if (useFirebase) {
+            initAuth();
+            onAuthStateChanged(auth, (user) => {
+                currentUser = user;
+                if (user) {
+                    // Rule 1: Strict paths setup for private user history
+                    const historyRef = collection(db, 'artifacts', appId, 'users', user.uid, 'history');
+                    
+                    // Rule 2: No complex queries (sorting done locally)
+                    onSnapshot(historyRef, (snapshot) => {
+                        sessionsList = [];
+                        snapshot.forEach(doc => {
+                            sessionsList.push({ id: doc.id, ...doc.data() });
+                        });
+                        
+                        // Sort descending by timestamp
+                        sessionsList.sort((a, b) => b.timestamp - a.timestamp);
+                        renderHistory(sessionsList);
+                    }, (error) => {
+                        console.error("Error fetching history:", error);
+                    });
+                }
+            });
+        }
+
+        async function saveSessionToHistory(totalTime, lapsArray) {
+            const dateOptions = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
+            const dateStr = new Date().toLocaleDateString(undefined, dateOptions); 
+            
+            if (useFirebase && currentUser && db) {
+                const historyRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'history');
+                try {
+                    await addDoc(historyRef, {
+                        date: dateStr,
+                        timestamp: Date.now(),
+                        totalTime: totalTime,
+                        laps: lapsArray
+                    });
+                } catch (e) {
+                    console.error("Error saving session", e);
+                }
+            } else {
+                // Fallback rendering for offline/no-backend test environments
+                sessionsList.push({
+                    id: Date.now().toString(),
+                    date: dateStr,
+                    timestamp: Date.now(),
+                    totalTime: totalTime,
+                    laps: lapsArray
+                });
+                sessionsList.sort((a, b) => b.timestamp - a.timestamp);
+                renderHistory(sessionsList);
+            }
+        }
+
+        // --- Core Stopwatch Variables ---
+        let isRunning = false;
+        let animationFrameId;
+        
+        // Time tracking (in milliseconds)
+        let startTime = 0;
+        let accumulatedTotalTime = 0;
+        let lapStartTime = 0;
+        let accumulatedLapTime = 0;
+        
+        let lapsCount = 0;
+        let isLapsOpen = false;
+        let memoryLaps = []; // Stores individual lap times to save to history
+
+        // --- Audio Logic (Deep Brown Noise) ---
+        let audioCtx = null;
+        let isSoundEnabled = false;
+
+        function initAudio() {
+            if (audioCtx) return;
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+            
+            const bufferSize = audioCtx.sampleRate * 2;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const output = buffer.getChannelData(0);
+            
+            let lastOut = 0;
+            for (let i = 0; i < bufferSize; i++) {
+                let white = Math.random() * 2 - 1;
+                output[i] = (lastOut + (0.02 * white)) / 1.02;
+                lastOut = output[i];
+                output[i] *= 3.5; 
+            }
+            
+            const noiseSource = audioCtx.createBufferSource();
+            noiseSource.buffer = buffer;
+            noiseSource.loop = true;
+            
+            const lowpassFilter = audioCtx.createBiquadFilter();
+            lowpassFilter.type = 'lowpass';
+            lowpassFilter.frequency.value = 300; 
+            lowpassFilter.Q.value = 0.5; 
+            
+            const gainNode = audioCtx.createGain();
+            gainNode.gain.value = 0.8; 
+            
+            noiseSource.connect(lowpassFilter);
+            lowpassFilter.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            noiseSource.start(0);
+            audioCtx.suspend(); 
+        }
+
+        function toggleSound() {
+            isSoundEnabled = !isSoundEnabled;
+            
+            if (isSoundEnabled) {
+                soundIconOn.classList.remove('hidden');
+                soundIconOff.classList.add('hidden');
+                initAudio();
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            } else {
+                soundIconOn.classList.add('hidden');
+                soundIconOff.classList.remove('hidden');
+                if (audioCtx && audioCtx.state === 'running') {
+                    audioCtx.suspend();
+                }
+            }
+        }
+
+        // --- DOM Elements ---
+        const totalDisplay = document.getElementById('total-display');
+        const currentDisplay = document.getElementById('current-display');
+        const mainBtn = document.getElementById('main-btn');
+        const lapBtn = document.getElementById('lap-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const lapsContainer = document.getElementById('laps-container');
+        
+        const soundBtn = document.getElementById('sound-btn');
+        const soundIconOn = document.getElementById('sound-icon-on');
+        const soundIconOff = document.getElementById('sound-icon-off');
+        
+        const lapsToggleBtn = document.getElementById('laps-toggle-btn');
+        const lapsCountText = document.getElementById('laps-count-text');
+        const lapsChevron = document.getElementById('laps-chevron');
+        const lapsWrapper = document.getElementById('laps-wrapper');
+
+        const historyBtn = document.getElementById('history-btn');
+        const historyModal = document.getElementById('history-modal');
+        const closeHistoryBtn = document.getElementById('close-history-btn');
+        const historyContent = document.getElementById('history-content');
+
+        // Formats ms to [HH:]MM:SS
+        function formatTime(ms) {
+            let totalSeconds = Math.floor(ms / 1000);
+            let hours = Math.floor(totalSeconds / 3600);
+            let minutes = Math.floor((totalSeconds % 3600) / 60);
+            let seconds = totalSeconds % 60;
+            
+            if (hours > 0) {
+                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+            return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        // Format short time string for history rows
+        function formatShortTimeStr(timestamp) {
+            return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // --- UI Updates ---
+        function updateDisplays() {
+            const now = Date.now();
+            let currentTotal = accumulatedTotalTime;
+            let currentLap = accumulatedLapTime;
+            
+            if (isRunning) {
+                currentTotal += (now - startTime);
+                currentLap += (now - lapStartTime);
+            }
+
+            totalDisplay.textContent = formatTime(currentTotal);
+            currentDisplay.textContent = `Current: ${formatTime(currentLap)}`;
+
+            if (isRunning) {
+                animationFrameId = requestAnimationFrame(updateDisplays);
+            }
+        }
+
+        function toggleTimer() {
+            const now = Date.now();
+            if (isRunning) {
+                isRunning = false;
+                cancelAnimationFrame(animationFrameId);
+                accumulatedTotalTime += (now - startTime);
+                accumulatedLapTime += (now - lapStartTime);
+                
+                mainBtn.textContent = 'Start';
+                mainBtn.className = 'btn-base btn-start font-soft-bold tracking-wide';
+            } else {
+                isRunning = true;
+                startTime = now;
+                lapStartTime = now;
+                
+                mainBtn.textContent = 'Pause';
+                mainBtn.className = 'btn-base btn-pause font-soft-bold tracking-wide';
+                animationFrameId = requestAnimationFrame(updateDisplays);
+            }
+        }
+
+        function toggleLapsDropdown() {
+            isLapsOpen = !isLapsOpen;
+            if (isLapsOpen) {
+                lapsWrapper.classList.add('open');
+                lapsChevron.style.transform = 'rotate(180deg)';
+                setTimeout(() => window.scrollBy({ top: 100, behavior: 'smooth' }), 100);
+            } else {
+                lapsWrapper.classList.remove('open');
+                lapsChevron.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function addLap() {
+            if (accumulatedTotalTime === 0 && !isRunning) return;
+            const now = Date.now();
+            let finalLapTime = accumulatedLapTime;
+            
+            if (isRunning) {
+                finalLapTime += (now - lapStartTime);
+                accumulatedLapTime = 0;
+                lapStartTime = now;
+            } else {
+                accumulatedLapTime = 0;
+            }
+            
+            lapsCount++;
+            memoryLaps.push(finalLapTime);
+            
+            if (lapsCount === 1) {
+                lapsToggleBtn.classList.remove('opacity-0', 'pointer-events-none');
+                lapsToggleBtn.classList.add('opacity-100');
+            }
+            lapsCountText.textContent = `${lapsCount} Lap${lapsCount > 1 ? 's' : ''}`;
+            
+            const el = document.createElement('div');
+            el.className = 'lap-entry flex justify-between items-center py-3 border-b border-white/5 text-lg last:border-0';
+            el.innerHTML = `
+                <span class="text-white/50 font-soft-medium text-base">Lap ${lapsCount.toString().padStart(2, '0')}</span>
+                <span class="font-soft-semibold tabular-nums tracking-wide">${formatTime(finalLapTime)}</span>
+            `;
+            
+            lapsContainer.prepend(el);
+            updateDisplays();
+        }
+
+        function resetAll() {
+            const now = Date.now();
+            let finalTotal = accumulatedTotalTime;
+            if (isRunning) {
+                finalTotal += (now - startTime);
+            }
+            
+            // Save Session Before Clearing
+            if (finalTotal > 0) {
+                saveSessionToHistory(finalTotal, memoryLaps);
+            }
+
+            isRunning = false;
+            cancelAnimationFrame(animationFrameId);
+            
+            accumulatedTotalTime = 0;
+            accumulatedLapTime = 0;
+            startTime = 0;
+            lapStartTime = 0;
+            lapsCount = 0;
+            memoryLaps = [];
+            
+            mainBtn.textContent = 'Start';
+            mainBtn.className = 'btn-base btn-start font-soft-bold tracking-wide';
+            
+            lapsContainer.innerHTML = '';
+            lapsToggleBtn.classList.add('opacity-0', 'pointer-events-none');
+            lapsToggleBtn.classList.remove('opacity-100');
+            lapsCountText.textContent = '0 Laps';
+            if (isLapsOpen) toggleLapsDropdown();
+            
+            updateDisplays();
+        }
+
+        // --- History Modal Functions ---
+        function toggleHistoryModal() {
+            if (historyModal.classList.contains('hidden')) {
+                historyModal.classList.remove('hidden');
+                // Render if empty and useFirebase is false (fallback initial render)
+                if(!useFirebase && sessionsList.length === 0) renderHistory([]);
+                // Trigger transition
+                void historyModal.offsetWidth;
+                historyModal.classList.remove('opacity-0');
+            } else {
+                historyModal.classList.add('opacity-0');
+                setTimeout(() => historyModal.classList.add('hidden'), 300);
+            }
+        }
+
+        function renderHistory(sessions) {
+            if (sessions.length === 0) {
+                historyContent.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-white/40 mt-10">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mb-4 opacity-50"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        <p class="font-soft-medium">No history yet.</p>
+                    </div>`;
+                return;
+            }
+
+            // Group by date
+            const grouped = {};
+            sessions.forEach(s => {
+                if (!grouped[s.date]) grouped[s.date] = [];
+                grouped[s.date].push(s);
+            });
+
+            let html = '';
+            for (const [date, daysessions] of Object.entries(grouped)) {
+                let dailyTotalTime = 0;
+                let dailyTotalLaps = 0;
+                
+                daysessions.forEach(s => {
+                    dailyTotalTime += s.totalTime;
+                    dailyTotalLaps += (s.laps ? s.laps.length : 0);
+                });
+
+                html += `
+                    <div class="mb-4 bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+                        <button class="day-toggle w-full p-4 flex justify-between items-center hover:bg-white/10 transition-colors">
+                            <div class="text-left">
+                                <h3 class="font-soft-bold text-lg text-white/90">${date}</h3>
+                                <p class="text-xs text-white/50 font-soft-medium mt-0.5">${dailyTotalLaps} Total Lap${dailyTotalLaps !== 1 ? 's' : ''}</p>
+                            </div>
+                            <div class="text-right flex items-center gap-3">
+                                <span class="font-soft-bold tabular-nums text-xl">${formatTime(dailyTotalTime)}</span>
+                                <svg class="chevron transition-transform duration-300 text-white/50" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </div>
+                        </button>
+                        <div class="day-details hidden p-4 pt-2 border-t border-white/10 space-y-3 bg-black/20">
+                `;
+                
+                daysessions.forEach(session => {
+                    html += `
+                        <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-white/80 font-soft-semibold text-sm">${formatShortTimeStr(session.timestamp)}</span>
+                                <span class="font-soft-bold tabular-nums text-md">${formatTime(session.totalTime)}</span>
+                            </div>
+                            ${session.laps && session.laps.length > 0 ? 
+                                `<div class="space-y-1 mt-2 border-t border-white/5 pt-2">
+                                    ${session.laps.map((lapTime, idx) => `
+                                        <div class="flex justify-between text-xs text-white/50 font-soft-medium">
+                                            <span>Lap ${(idx + 1).toString().padStart(2, '0')}</span>
+                                            <span class="tabular-nums">${formatTime(lapTime)}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>` 
+                                : '<div class="text-xs text-white/30 mt-2 font-soft-medium">No Laps</div>'
+                            }
+                        </div>`;
+                });
+                
+                html += `</div></div>`;
+            }
+            historyContent.innerHTML = html;
+        }
+
+        // --- Event Listeners ---
+        mainBtn.addEventListener('click', toggleTimer);
+        lapBtn.addEventListener('click', addLap);
+        resetBtn.addEventListener('click', resetAll);
+        soundBtn.addEventListener('click', toggleSound);
+        lapsToggleBtn.addEventListener('click', toggleLapsDropdown);
+        
+        historyBtn.addEventListener('click', toggleHistoryModal);
+        closeHistoryBtn.addEventListener('click', toggleHistoryModal);
+
+        historyContent.addEventListener('click', (e) => {
+            const toggleBtn = e.target.closest('.day-toggle');
+            if (toggleBtn) {
+                const details = toggleBtn.nextElementSibling;
+                const chevron = toggleBtn.querySelector('.chevron');
+                details.classList.toggle('hidden');
+                if (details.classList.contains('hidden')) {
+                    chevron.style.transform = 'rotate(0deg)';
+                } else {
+                    chevron.style.transform = 'rotate(180deg)';
+                }
+            }
+        });
+
+        // Keyboard support
+        document.addEventListener('keydown', (e) => {
+            // Disable timer shortcuts if history modal is open
+            if (!historyModal.classList.contains('hidden')) {
+                if (e.code === 'Escape') toggleHistoryModal();
+                return;
+            }
+
+            if (e.code === 'Space') {
+                e.preventDefault();
+                toggleTimer();
+            } else if (e.code === 'Enter') {
+                e.preventDefault();
+                addLap();
+            }
+        });
+
+        // Initial render
+        updateDisplays();
+    </script>
+</body>
+</html>
+
+
